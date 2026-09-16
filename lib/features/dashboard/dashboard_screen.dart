@@ -8,6 +8,9 @@ import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/period_selector.dart';
 import '../../shared/widgets/stat_card.dart';
 import '../../shared/widgets/status_badge.dart';
+import '../reports/reports_screen.dart';
+import '../tasks/tasks_screen.dart';
+import '../workers/workers_screen.dart';
 import 'activity_feed.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -42,7 +45,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         color: const Color(0xFF2E7D32),
         label: 'Active Tasks',
         value: Text('${stats.activeTasks}'),
-        onTap: () {},
+        onTap: () => _open(context, const TasksScreen()),
       ),
       StatCard(
         icon: Icons.groups_outlined,
@@ -50,12 +53,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
         label: 'Workers',
         value: Text('${stats.totalWorkers}'),
         sub: '${stats.workersWithAllocations} allocated in period',
+        onTap: () => _open(context, const WorkersScreen()),
       ),
       StatCard(
         icon: Icons.landscape_outlined,
         color: const Color(0xFF6A1B9A),
         label: 'Total Area',
         value: Text(formatArea(stats.totalArea)),
+        onTap: () => _open(context, const TasksScreen()),
       ),
       StatCard(
         icon: Icons.functions_outlined,
@@ -63,6 +68,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         label: 'Expected',
         value: MoneyText(stats.expected),
         accent: true,
+        onTap: () => _open(context, const ReportsScreen()),
       ),
       StatCard(
         icon: Icons.handshake_outlined,
@@ -72,18 +78,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
         sub: stats.adjustmentTotal.abs() > 0.01
             ? 'Adjustments ${fmtSigned(stats.adjustmentTotal)}'
             : null,
+        onTap: () => _open(context, const ReportsScreen()),
       ),
       StatCard(
         icon: Icons.payments_outlined,
         color: const Color(0xFF2E7D32),
         label: 'Paid',
         value: MoneyText(stats.paid),
+        onTap: () => _open(context, const ReportsScreen()),
       ),
       StatCard(
         icon: Icons.account_balance_wallet_outlined,
         color: const Color(0xFFC62828),
         label: 'Remaining',
         value: MoneyText(stats.remaining),
+        onTap: () => _open(context, const ReportsScreen()),
       ),
       StatCard(
         icon: Icons.arrow_downward,
@@ -91,6 +100,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         label: 'Collected For Others',
         value: MoneyText(stats.collectedForOthers),
         sub: '${stats.totalWorkers} workers · collector side',
+        onTap: () => _open(context, const ReportsScreen()),
       ),
       StatCard(
         icon: Icons.hourglass_empty,
@@ -99,6 +109,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         value: MoneyText(stats.pendingHandover),
         sub: 'Handed over ${fmtMoney(stats.handedOver)}',
         accent: stats.pendingHandover > 0,
+        onTap: () => _open(context, const ReportsScreen()),
       ),
     ];
 
@@ -167,7 +178,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   crossAxisCount: isWide ? 3 : (MediaQuery.of(context).size.width >= 600 ? 3 : 2),
                   mainAxisSpacing: 12,
                   crossAxisSpacing: 12,
-                  childAspectRatio: isWide ? 1.9 : 1.45,
+                  childAspectRatio: isWide ? 1.9 : 1.15,
                 ),
                 delegate: SliverChildListDelegate(grid),
               ),
@@ -220,6 +231,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
   String formatArea(double area) {
     final rounded = area.round();
     return '$rounded m²';
+  }
+
+  void _open(BuildContext context, Widget screen) {
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => screen));
   }
 }
 

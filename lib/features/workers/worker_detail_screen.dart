@@ -84,14 +84,25 @@ class WorkerDetailScreen extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 8),
-              Row(
-                children: [
-                  Expanded(child: InfoTile(icon: Icons.account_balance_wallet, color: money.remaining > 0 ? const Color(0xFFEF6C00) : const Color(0xFF2E7D32), label: 'Remaining (own)', value: fmtMoney(money.remaining.round()))),
-                  const SizedBox(width: 8),
-                  Expanded(child: InfoTile(icon: Icons.arrow_downward, color: const Color(0xFF0277BD), label: 'Collected for others', value: fmtMoney(money.collectedForOthers.round()))),
-                  const SizedBox(width: 8),
-                  Expanded(child: InfoTile(icon: Icons.hourglass_empty, color: money.pendingHandover > 0 ? const Color(0xFFEF6C00) : const Color(0xFF2E7D32), label: 'Pending handover', value: fmtMoney(money.pendingHandover.round()))),
-                ],
+              LayoutBuilder(
+                builder: (context, constraints) => Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    SizedBox(
+                      width: constraints.maxWidth >= 620 ? (constraints.maxWidth - 16) / 3 : (constraints.maxWidth - 8) / 2,
+                      child: InfoTile(icon: Icons.account_balance_wallet, color: money.remaining > 0 ? const Color(0xFFEF6C00) : const Color(0xFF2E7D32), label: 'Remaining (own)', value: fmtMoney(money.remaining.round())),
+                    ),
+                    SizedBox(
+                      width: constraints.maxWidth >= 620 ? (constraints.maxWidth - 16) / 3 : (constraints.maxWidth - 8) / 2,
+                      child: InfoTile(icon: Icons.arrow_downward, color: const Color(0xFF0277BD), label: 'Collected for others', value: fmtMoney(money.collectedForOthers.round())),
+                    ),
+                    SizedBox(
+                      width: constraints.maxWidth >= 620 ? (constraints.maxWidth - 16) / 3 : (constraints.maxWidth - 8) / 2,
+                      child: InfoTile(icon: Icons.hourglass_empty, color: money.pendingHandover > 0 ? const Color(0xFFEF6C00) : const Color(0xFF2E7D32), label: 'Pending handover', value: fmtMoney(money.pendingHandover.round())),
+                    ),
+                  ],
+                ),
               ),
 
               const SizedBox(height: 24),
@@ -231,13 +242,15 @@ class _OwnTaskTile extends StatelessWidget {
             if (calc != null)
               Text('Area: ${fmtArea((calc.outputs['area'] as num?)?.toDouble() ?? 0)}',
                   style: Theme.of(context).textTheme.bodySmall),
-            Row(
+            Wrap(
+              spacing: 12,
+              runSpacing: 8,
               children: [
-                Expanded(child: _stat(context, 'Expected', fmtMoney(allocation.expectedAmount.round()))),
-                Expanded(child: _stat(context, 'Allocated', fmtMoney(allocation.allocatedAmount.round()))),
-                if (diff.abs() > 0.001) Expanded(child: _stat(context, 'Difference', '${fmtSigned(diff)}', color: const Color(0xFF6A1B9A))),
-                Expanded(child: _stat(context, 'Paid', fmtMoney(paid.round()))),
-                Expanded(child: _stat(context, 'Remaining', fmtMoney(remaining.round()))),
+                _stat(context, 'Expected', fmtMoney(allocation.expectedAmount.round())),
+                _stat(context, 'Allocated', fmtMoney(allocation.allocatedAmount.round())),
+                if (diff.abs() > 0.001) _stat(context, 'Difference', '${fmtSigned(diff)}', color: const Color(0xFF6A1B9A)),
+                _stat(context, 'Paid', fmtMoney(paid.round())),
+                _stat(context, 'Remaining', fmtMoney(remaining.round())),
               ],
             ),
             if (diff.abs() > 0.001)
