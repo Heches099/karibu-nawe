@@ -1,0 +1,27 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isManager() {
+      return signedIn()
+        && (request.auth.token.role == 'boss' || request.auth.token.role == 'manager');
+    }
+
+    match /work-zones/{zoneId}/{fileName} {
+      allow read: if signedIn();
+      allow write: if signedIn()
+        && request.resource.size < 10 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*')
+        && (isManager() || request.auth.uid == zoneId);
+      allow delete: if isManager();
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

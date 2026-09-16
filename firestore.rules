@@ -1,0 +1,106 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function hasRole(role) {
+      return signedIn() && request.auth.token.role == role;
+    }
+
+    function isManager() {
+      return hasRole('boss') || hasRole('manager');
+    }
+
+    function isSelf(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    // Financial and audit records are manager-controlled. Clients cannot
+    // change roles, audit history, or historical payment records directly.
+    match /users/{userId} {
+      allow read: if isSelf(userId) || isManager();
+      allow create: if isManager();
+      allow update: if isManager() && request.resource.data.role == resource.data.role;
+      allow delete: if false;
+    }
+
+    match /audit_logs/{auditId} {
+      allow read: if isManager();
+      allow create: if isManager();
+      allow update, delete: if false;
+    }
+
+    match /payments/{paymentId} {
+      allow read: if signedIn();
+      allow create: if isManager()
+        && request.resource.data.amount is number
+        && request.resource.data.amount > 0
+        && request.resource.data.recordedBy == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    match /collections/{collectionId} {
+      allow read: if signedIn();
+      allow create: if isManager();
+      allow update, delete: if false;
+    }
+
+    match /handovers/{handoverId} {
+      allow read: if signedIn();
+      allow create: if isManager();
+      allow update, delete: if false;
+    }
+
+    match /allocations/{allocationId} {
+      allow read: if signedIn();
+      allow create, update: if isManager();
+      allow delete: if false;
+    }
+
+    match /allocation_adjustments/{adjustmentId} {
+      allow read: if signedIn();
+      allow create: if isManager()
+        && request.resource.data.reason is string
+        && request.resource.data.reason.size() > 0;
+      allow update, delete: if false;
+    }
+
+    match /tasks/{taskId} {
+      allow read: if signedIn();
+      allow create, update: if isManager();
+      allow delete: if false;
+    }
+
+    match /work_types/{workTypeId} {
+      allow read: if signedIn();
+      allow create, update: if isManager();
+      allow delete: if false;
+    }
+
+    match /workers/{workerId} {
+      allow read: if signedIn();
+      allow create, update: if isManager();
+      allow delete: if false;
+    }
+
+    match /work_zones/{zoneId} {
+      allow read: if signedIn();
+      allow create: if signedIn();
+      allow update: if signedIn();
+      allow delete: if false;
+    }
+
+    match /work_progress/{progressId} {
+      allow read: if signedIn();
+      allow create: if signedIn();
+      allow update, delete: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
