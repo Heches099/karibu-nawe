@@ -22,7 +22,7 @@ class _AssignWorkerSheetState extends State<AssignWorkerSheet> {
   final _allocated = TextEditingController();
   final _reason = TextEditingController();
   final _notes = TextEditingController();
-  Worker? _worker;
+  String? _workerId;
   double? _expected;
   String? _reasonError;
 
@@ -49,6 +49,11 @@ class _AssignWorkerSheetState extends State<AssignWorkerSheet> {
       if (_allocated.text.isEmpty) _allocated.text = '${_expected!.round()}';
     }
 
+    // Validate that _workerId still corresponds to an available worker
+    if (_workerId != null && !available.any((w) => w.id == _workerId)) {
+      _workerId = null;
+    }
+
     double? allocatedVal() => Formatters.parseAmount(_allocated.text);
     final expectedVal = _expected;
     final allocatedVal2 = allocatedVal();
@@ -59,13 +64,13 @@ class _AssignWorkerSheetState extends State<AssignWorkerSheet> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          DropdownButtonFormField<Worker>(
-            initialValue: _worker,
-            onChanged: (v) => setState(() => _worker = v),
+          DropdownButtonFormField<String>(
+            initialValue: _workerId,
+            onChanged: (v) => setState(() => _workerId = v),
             decoration: const InputDecoration(labelText: 'Worker', prefixIcon: Icon(Icons.person_outline)),
             hint: const Text('Select a worker for this row'),
             validator: (value) => value == null ? 'Select a worker.' : null,
-            items: [for (final w in available) DropdownMenuItem(value: w, child: Text(w.name))],
+            items: [for (final w in available) DropdownMenuItem(value: w.id, child: Text(w.name))],
           ),
           Align(
             alignment: Alignment.centerLeft,
@@ -76,7 +81,7 @@ class _AssignWorkerSheetState extends State<AssignWorkerSheet> {
                   const _QuickAddWorkerForm(),
                   title: 'Add Worker',
                 );
-                if (worker != null && mounted) setState(() => _worker = worker);
+                if (worker != null && mounted) setState(() => _workerId = worker.id);
               },
               icon: const Icon(Icons.person_add_alt, size: 18),
               label: const Text('Add a new worker manually'),
@@ -146,7 +151,9 @@ class _AssignWorkerSheetState extends State<AssignWorkerSheet> {
                 return;
               }
               try {
-                final worker = _worker;
+                final workerId = _workerId;
+                if (workerId == null) return;
+                final worker = store.workerById(workerId);
                 if (worker == null) return;
                 store.addAllocation(
                   task: widget.task,

@@ -433,6 +433,43 @@ class AppStore extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Register a new user. The first user becomes a boss, subsequent users are managers.
+  Future<User> registerUser({
+    required String username,
+    required String password,
+    required String displayName,
+  }) async {
+    username = username.trim();
+    displayName = displayName.trim();
+    if (username.isEmpty) throw ValidationException('Username is required.');
+    if (displayName.isEmpty) throw ValidationException('Display name is required.');
+    if (password.length < 4) throw ValidationException('Password must be at least 4 characters.');
+    if (users.any((u) => u.username.toLowerCase() == username.toLowerCase())) {
+      throw ValidationException('Username already exists. Please choose another.');
+    }
+    final isFirstUser = users.isEmpty;
+    final role = isFirstUser ? UserRole.boss : UserRole.manager;
+    final now = DateTime.now();
+    final user = User(
+      id: genId(),
+      username: username,
+      password: password,
+      displayName: displayName,
+      role: role,
+      isActive: true,
+      createdAt: now,
+    );
+    users.add(user);
+    await backend.put(DbStore.users, user.id, user.toMap());
+    _recordAudit(AuditLog.create(
+      action: AuditActionType.settingsUpdated,
+      actor: actorName,
+      newValue: {'userId': user.id, 'username': user.username, 'role': user.role.name},
+    ));
+    notifyListeners();
+    return user;
+  }
+
   User? getCurrentUser() => session;
 
   // ---------------------------------------------------------------- workers
