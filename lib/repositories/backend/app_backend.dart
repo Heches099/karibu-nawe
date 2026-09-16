@@ -19,6 +19,7 @@ abstract class DbStore {
   static const handovers = 'handovers';
   static const workZones = 'work_zones';
   static const workProgress = 'work_progress';
+  static const areaMeasurements = 'area_measurements';
   static const auditLogs = 'audit_logs';
   static const meta = 'meta';
 }
@@ -106,6 +107,7 @@ class AppBackend {
     DbStore.handovers,
     DbStore.workZones,
     DbStore.workProgress,
+    DbStore.areaMeasurements,
     DbStore.auditLogs,
     DbStore.meta,
   ];

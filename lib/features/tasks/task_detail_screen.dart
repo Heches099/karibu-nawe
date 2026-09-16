@@ -16,6 +16,7 @@ import '../calculator/calculator_screen.dart';
 import '../collections/collection_sheet.dart';
 import '../collections/collector_summary_screen.dart';
 import '../dashboard/activity_feed.dart';
+import '../area_measurement/area_measurement_screen.dart';
 import '../payments/payment_sheet.dart';
 import '../workers/worker_detail_screen.dart';
 
@@ -227,7 +228,10 @@ class _OverviewTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final store = context.watch<AppStore>();
     final calcData = calc;
+    final measurements = store.measurementsForTask(task.id);
+    final latestMeasurement = measurements.isEmpty ? null : measurements.first;
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
@@ -251,6 +255,11 @@ class _OverviewTab extends StatelessWidget {
                   ? () => _open(context, CalculatorScreen(task: task), 'Calculator')
                   : null,
             ),
+            ActionChip(
+              avatar: const Icon(Icons.gps_fixed),
+              label: Text(latestMeasurement == null ? 'Measure Area' : 'Measure Area Again'),
+              onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => AreaMeasurementScreen(task: task))),
+            ),
             if (summary.collectedForOthers > 0)
               ActionChip(
                 avatar: const Icon(Icons.arrow_downward), label: const Text('Collection'),
@@ -269,6 +278,8 @@ class _OverviewTab extends StatelessWidget {
               _kv(context, 'Work Date', fmtDate(task.workDate)),
               _kv(context, 'Farm / Field', task.field),
               _kv(context, 'Status', task.status.label),
+              if (latestMeasurement != null)
+                _kv(context, 'Saved survey area', '${fmtArea(latestMeasurement.areaM2)} · ${latestMeasurement.syncStatus.name}'),
               if (task.notes != null && task.notes!.isNotEmpty) _kv(context, 'Notes', task.notes!),
               _kv(context, 'Created', '${fmtDateTime(task.createdAt)} by ${task.createdBy}'),
             ],

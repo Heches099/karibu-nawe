@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/errors/app_exception.dart';
 import '../../core/utils/id_gen.dart';
 import '../../models/allocation.dart';
+import '../../models/area_measurement.dart';
 import '../../models/audit_log.dart';
 import '../../models/calculation.dart';
 import '../../models/enums.dart';
@@ -20,6 +21,7 @@ import '../../services/summary/summary_service.dart';
 
 /// Convenience import path used by feature screens.
 export '../../models/allocation.dart';
+export '../../models/area_measurement.dart';
 export '../../models/audit_log.dart';
 export '../../models/calculation.dart';
 export '../../models/enums.dart';
@@ -62,6 +64,7 @@ class AppStore extends ChangeNotifier {
   List<Handover> handovers = [];
   List<WorkZone> workZones = [];
   List<WorkProgress> workProgress = [];
+  List<AreaMeasurement> areaMeasurements = [];
   List<AuditLog> audits = [];
 
   User? session;
@@ -237,6 +240,8 @@ class AppStore extends ChangeNotifier {
     workZones.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
     workProgress = (await backend.getAll(DbStore.workProgress)).map(WorkProgress.fromMap).toList();
     workProgress.sort((a, b) => b.recordedAt.compareTo(a.recordedAt));
+    areaMeasurements = (await backend.getAll(DbStore.areaMeasurements)).map(AreaMeasurement.fromMap).toList();
+    areaMeasurements.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
     audits = (await backend.getAll(DbStore.auditLogs)).map(AuditLog.fromMap).toList();
     audits.sort((a, b) => b.createdAt.compareTo(a.createdAt));
   }
@@ -407,6 +412,30 @@ class AppStore extends ChangeNotifier {
     notifyListeners();
     return progress;
   }
+
+  Future<AreaMeasurement> saveAreaMeasurement(AreaMeasurement measurement) async {
+    if (session == null) throw AuthorizationException('Sign in before saving an area measurement.');
+    if (measurement.areaM2 <= 0) throw ValidationException('Measured area must be greater than zero.');
+    if (areaMeasurements.any((existing) => existing.id == measurement.id)) {
+      throw ValidationException('This area measurement has already been saved.');
+    }
+    areaMeasurements.insert(0, measurement);
+    await backend.put(DbStore.areaMeasurements, measurement.id, measurement.toMap());
+    await _recordAudit(AuditLog.create(
+      action: AuditActionType.workZoneCreated,
+      actor: actorName,
+      taskId: measurement.taskId,
+      newValue: {
+        'measurementId': measurement.id,
+        'areaM2': measurement.areaM2,
+        'accuracyMeters': measurement.averageAccuracyMeters,
+      },
+    ));
+    notifyListeners();
+    return measurement;
+  }
+
+  List<AreaMeasurement> measurementsForTask(String taskId) => areaMeasurements.where((measurement) => measurement.taskId == taskId).toList();
 
   Future<void> _putSession() => backend.put(DbStore.meta, 'session', {'sessionUserId': session?.id ?? ''});
 
@@ -947,6 +976,7 @@ class AppStore extends ChangeNotifier {
     handovers.clear();
     workZones.clear();
     workProgress.clear();
+    areaMeasurements.clear();
     audits.clear();
     await _ensureDefaults();
     _ready = true;

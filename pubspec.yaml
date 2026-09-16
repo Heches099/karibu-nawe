@@ -25,6 +25,10 @@ dependencies:
   # State management
   provider: ^6.1.2
 
+  # Area survey - GPS is primary; sensor streams are optional enhancements.
+  geolocator: ^14.0.2
+  sensors_plus: ^7.0.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
