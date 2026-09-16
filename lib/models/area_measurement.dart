@@ -38,9 +38,17 @@ class AreaMeasurement {
   final DateTime? finishedAt;
   final List<SurveyPoint> points;
   final List<SurveyPoint> smoothedPoints;
+  final List<SurveyPoint> rawPoints;
   final double areaM2;
   final double perimeterM;
   final double averageAccuracyMeters;
+  final double qualityScore;
+  final String qualityConfidence;
+  final double closureDistanceM;
+  final String closureQuality;
+  final double distanceTravelledM;
+  final int rejectedPointCount;
+  final String filterVersion;
   final String sensorInfo;
   final MeasurementStatus status;
   final MeasurementSyncStatus syncStatus;
@@ -56,9 +64,17 @@ class AreaMeasurement {
     this.finishedAt,
     this.points = const [],
     this.smoothedPoints = const [],
+    this.rawPoints = const [],
     required this.areaM2,
     required this.perimeterM,
     required this.averageAccuracyMeters,
+    this.qualityScore = 0,
+    this.qualityConfidence = 'UNKNOWN',
+    this.closureDistanceM = 0,
+    this.closureQuality = 'UNKNOWN',
+    this.distanceTravelledM = 0,
+    this.rejectedPointCount = 0,
+    this.filterVersion = 'v1',
     required this.sensorInfo,
     this.status = MeasurementStatus.completed,
     this.syncStatus = MeasurementSyncStatus.queued,
@@ -79,9 +95,17 @@ class AreaMeasurement {
         'finishedAt': finishedAt?.toIso8601String(),
         'points': points.map((point) => point.toMap()).toList(),
         'smoothedPoints': smoothedPoints.map((point) => point.toMap()).toList(),
+        'rawPoints': rawPoints.map((point) => point.toMap()).toList(),
         'areaM2': areaM2,
         'perimeterM': perimeterM,
         'averageAccuracyMeters': averageAccuracyMeters,
+        'qualityScore': qualityScore,
+        'qualityConfidence': qualityConfidence,
+        'closureDistanceM': closureDistanceM,
+        'closureQuality': closureQuality,
+        'distanceTravelledM': distanceTravelledM,
+        'rejectedPointCount': rejectedPointCount,
+        'filterVersion': filterVersion,
         'sensorInfo': sensorInfo,
         'status': status.index,
         'syncStatus': syncStatus.index,
@@ -98,9 +122,17 @@ class AreaMeasurement {
         finishedAt: (map['finishedAt'] as String?) == null ? null : DateTime.parse(map['finishedAt'] as String),
         points: _points(map['points']),
         smoothedPoints: _points(map['smoothedPoints']),
+        rawPoints: _points(map['rawPoints']),
         areaM2: (map['areaM2'] as num).toDouble(),
         perimeterM: (map['perimeterM'] as num).toDouble(),
         averageAccuracyMeters: (map['averageAccuracyMeters'] as num?)?.toDouble() ?? 0,
+        qualityScore: (map['qualityScore'] as num?)?.toDouble() ?? 0,
+        qualityConfidence: map['qualityConfidence'] as String? ?? 'UNKNOWN',
+        closureDistanceM: (map['closureDistanceM'] as num?)?.toDouble() ?? 0,
+        closureQuality: map['closureQuality'] as String? ?? 'UNKNOWN',
+        distanceTravelledM: (map['distanceTravelledM'] as num?)?.toDouble() ?? 0,
+        rejectedPointCount: map['rejectedPointCount'] as int? ?? 0,
+        filterVersion: map['filterVersion'] as String? ?? 'v1',
         sensorInfo: map['sensorInfo'] as String? ?? 'Unavailable',
         status: MeasurementStatus.values[map['status'] as int? ?? MeasurementStatus.completed.index],
         syncStatus: MeasurementSyncStatus.values[map['syncStatus'] as int? ?? MeasurementSyncStatus.queued.index],

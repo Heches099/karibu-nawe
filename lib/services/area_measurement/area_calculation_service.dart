@@ -5,7 +5,7 @@ class AreaCalculationService {
   const AreaCalculationService();
 
   static const goodAccuracyMeters = 5.0;
-  static const fairAccuracyMeters = 15.0;
+  static const fairAccuracyMeters = 10.0;
   static const minimumAreaM2 = 4.0;
   static const minimumPoints = 3;
 

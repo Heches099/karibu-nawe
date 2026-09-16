@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:farm_fms/models/area_measurement.dart';
 import 'package:farm_fms/services/area_measurement/area_calculation_service.dart';
 import 'package:farm_fms/services/area_measurement/location_filter.dart';
+import 'package:farm_fms/services/area_measurement/measurement_quality_service.dart';
 
 void main() {
   final calculator = const AreaCalculationService();
@@ -52,5 +53,32 @@ void main() {
     expect(filter.accept(first, point(0, 0.000001, seconds: 2)), isNull);
     expect(filter.accept(first, point(0, 0.001, seconds: 2)), isNull);
     expect(filter.accept(first, point(0, 0.00003, seconds: 3)), isNotNull);
+  });
+
+  test('stabilizes a GPS burst toward the accurate samples', () {
+    const filter = LocationFilter();
+    final stabilized = filter.stabilizeBurst([
+      point(0, 0, accuracy: 10, seconds: 1),
+      point(0, 0.00001, accuracy: 2, seconds: 2),
+      point(0, 0.000011, accuracy: 2, seconds: 3),
+      point(0, 0.001, accuracy: 2, seconds: 4),
+    ]);
+    expect(stabilized, isNotNull);
+    expect(stabilized!.longitude, lessThan(0.0001));
+  });
+
+  test('reports closure, confidence, and area stability', () {
+    const quality = MeasurementQualityService();
+    final points = [
+      point(0, 0),
+      point(0, 0.00017986),
+      point(0.00018085, 0.00017986),
+      point(0.00018085, 0),
+    ];
+    final report = quality.assess(rawPoints: [...points, point(0.01, 0.01, accuracy: 40)], acceptedPoints: points, closureDistanceMeters: 1.8);
+    expect(report.stable, isTrue);
+    expect(report.closureQuality, 'GOOD');
+    expect(report.confidence, 'MEDIUM');
+    expect(report.rejectedPoints, 1);
   });
 }

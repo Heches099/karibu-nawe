@@ -8,6 +8,7 @@ import 'package:sensors_plus/sensors_plus.dart';
 import '../../core/utils/format.dart';
 import '../../services/area_measurement/area_calculation_service.dart';
 import '../../services/area_measurement/location_filter.dart';
+import '../../services/area_measurement/measurement_quality_service.dart';
 import '../../services/store/app_store.dart';
 import '../../shared/widgets/forms.dart';
 
@@ -27,20 +28,33 @@ class _AreaMeasurementScreenState extends State<AreaMeasurementScreen> {
   final _notes = TextEditingController();
   final _calculator = const AreaCalculationService();
   final _filter = const LocationFilter();
+  final _qualityService = const MeasurementQualityService();
   final _points = <SurveyPoint>[];
+  final _rawPoints = <SurveyPoint>[];
+  final _sampleBuffer = <SurveyPoint>[];
   StreamSubscription<Position>? _locationSubscription;
   StreamSubscription<AccelerometerEvent>? _accelerometerSubscription;
   StreamSubscription<GyroscopeEvent>? _gyroscopeSubscription;
+  StreamSubscription<MagnetometerEvent>? _magnetometerSubscription;
   bool _measuring = false;
   bool _paused = false;
   bool _sensorAvailable = false;
+  bool _compassAvailable = false;
+  bool _gpsReady = false;
   double? _accuracy;
   String? _error;
   DateTime? _startedAt;
   DateTime? _finishedAt;
   double? _calculatedArea;
   double? _calculatedPerimeter;
+  MeasurementQualityReport? _qualityReport;
   String _mode = 'manual';
+
+  @override
+  void initState() {
+    super.initState();
+    _prepareGpsFix();
+  }
 
   @override
   void dispose() {
@@ -53,17 +67,11 @@ class _AreaMeasurementScreenState extends State<AreaMeasurementScreen> {
   }
 
   Future<void> _startGps() async {
+    if (!_gpsReady) {
+      setState(() => _error = 'Waiting for a stable GPS fix. Accuracy must be GOOD before starting.');
+      return;
+    }
     setState(() => _error = null);
-    if (!await Geolocator.isLocationServiceEnabled()) {
-      setState(() => _error = 'Location is disabled. Enable GPS and try again.');
-      return;
-    }
-    var permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied) permission = await Geolocator.requestPermission();
-    if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
-      setState(() => _error = 'Location permission is required for boundary measurement.');
-      return;
-    }
     final started = DateTime.now();
     setState(() {
       _mode = 'gps';
@@ -73,12 +81,10 @@ class _AreaMeasurementScreenState extends State<AreaMeasurementScreen> {
       _finishedAt = null;
       _calculatedArea = null;
       _calculatedPerimeter = null;
+      _qualityReport = null;
       _points.clear();
-    });
-    _locationSubscription = Geolocator.getPositionStream(
-      locationSettings: const LocationSettings(accuracy: LocationAccuracy.high, distanceFilter: 2),
-    ).listen(_onPosition, onError: (Object error) {
-      if (mounted) setState(() => _error = 'Location updates are unavailable. You can save a manual measurement instead.');
+      _rawPoints.clear();
+      _sampleBuffer.clear();
     });
     try {
       _accelerometerSubscription = accelerometerEventStream(samplingPeriod: SensorInterval.normalInterval).listen((_) {
@@ -87,20 +93,58 @@ class _AreaMeasurementScreenState extends State<AreaMeasurementScreen> {
       _gyroscopeSubscription = gyroscopeEventStream(samplingPeriod: SensorInterval.normalInterval).listen((_) {
         if (mounted && !_sensorAvailable) setState(() => _sensorAvailable = true);
       });
+      _magnetometerSubscription = magnetometerEventStream(samplingPeriod: SensorInterval.normalInterval).listen((_) {
+        if (mounted && !_compassAvailable) setState(() => _compassAvailable = true);
+      });
     } catch (_) {
       _sensorAvailable = false;
     }
   }
 
+  Future<void> _prepareGpsFix() async {
+    if (!await Geolocator.isLocationServiceEnabled()) {
+      if (mounted) setState(() => _error = 'Location is disabled. Manual measurement remains available.');
+      return;
+    }
+    var permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) permission = await Geolocator.requestPermission();
+    if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
+      if (mounted) setState(() => _error = 'Location permission is unavailable. Manual measurement remains available.');
+      return;
+    }
+    _locationSubscription = Geolocator.getPositionStream(
+      locationSettings: const LocationSettings(accuracy: LocationAccuracy.high, distanceFilter: 1),
+    ).listen(_onPosition, onError: (Object error) {
+      if (mounted) setState(() => _error = 'Location updates are unavailable. Manual measurement remains available.');
+    });
+  }
+
   void _onPosition(Position position) {
-    if (!_measuring || _paused) return;
     final point = SurveyPoint(
       latitude: position.latitude,
       longitude: position.longitude,
       accuracyMeters: position.accuracy,
       recordedAt: position.timestamp,
     );
-    final accepted = _filter.accept(_points.isEmpty ? null : _points.last, point);
+    if (_filter.isStale(point)) return;
+    if (!_measuring) {
+      if (mounted) {
+        setState(() {
+          _accuracy = point.accuracyMeters;
+          _sampleBuffer.add(point);
+          _gpsReady = _sampleBuffer.length >= 3 && point.accuracyMeters <= AreaCalculationService.goodAccuracyMeters;
+        });
+      }
+      return;
+    }
+    _rawPoints.add(point);
+    if (_paused) return;
+    _sampleBuffer.add(point);
+    if (_sampleBuffer.length < 3) return;
+    final stabilized = _filter.stabilizeBurst(List.of(_sampleBuffer));
+    _sampleBuffer.clear();
+    if (stabilized == null) return;
+    final accepted = _filter.accept(_points.isEmpty ? null : _points.last, stabilized);
     if (accepted == null) return;
     setState(() {
       _points.add(accepted);
@@ -110,18 +154,35 @@ class _AreaMeasurementScreenState extends State<AreaMeasurementScreen> {
 
   void _togglePause() => setState(() => _paused = !_paused);
 
-  void _finishGps() {
+  Future<void> _finishGps() async {
     if (_points.length < AreaCalculationService.minimumPoints) {
       setState(() => _error = 'Continue walking until at least three boundary points are recorded.');
       return;
     }
     try {
       final area = _calculator.areaM2(_points);
+      final closureDistance = _points.length < 2 ? 0.0 : _qualityService.distanceMeters(_points.first, _points.last);
+      final report = _qualityService.assess(rawPoints: _rawPoints, acceptedPoints: _points, closureDistanceMeters: closureDistance);
+      if (closureDistance <= MeasurementQualityService.fairClosureMeters && mounted) {
+        final close = await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            title: const Text('Starting point nearby'),
+            content: Text('The route is ${closureDistance.toStringAsFixed(1)} m from the start. Close this boundary and review the result?'),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Continue walking')),
+              FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Close boundary')),
+            ],
+          ),
+        );
+        if (close != true) return;
+      }
       setState(() {
         _measuring = false;
         _finishedAt = DateTime.now();
         _calculatedArea = area;
         _calculatedPerimeter = _calculator.perimeterM(_points);
+        _qualityReport = report;
         _error = null;
       });
       _stopStreams();
@@ -143,6 +204,7 @@ class _AreaMeasurementScreenState extends State<AreaMeasurementScreen> {
       _calculatedPerimeter = 2 * (length + width);
       _startedAt = DateTime.now();
       _finishedAt = DateTime.now();
+      _qualityReport = null;
       _error = null;
     });
   }
@@ -151,6 +213,10 @@ class _AreaMeasurementScreenState extends State<AreaMeasurementScreen> {
     final area = _calculatedArea;
     if (area == null || area <= 0) {
       setState(() => _error = 'Calculate an area before saving.');
+      return;
+    }
+    if (_mode == 'gps' && (_qualityReport == null || !_qualityReport!.stable)) {
+      setState(() => _error = 'Measurement is unstable. Improve GPS quality or repeat the boundary before saving.');
       return;
     }
     final store = context.read<AppStore>();
@@ -163,9 +229,17 @@ class _AreaMeasurementScreenState extends State<AreaMeasurementScreen> {
       finishedAt: _finishedAt ?? now,
       points: List.unmodifiable(_points),
       smoothedPoints: List.unmodifiable(_points),
+      rawPoints: List.unmodifiable(_rawPoints),
       areaM2: area,
       perimeterM: _calculatedPerimeter ?? 0,
       averageAccuracyMeters: _points.isEmpty ? 0 : _calculator.averageAccuracy(_points),
+      qualityScore: _qualityReport?.score ?? 100,
+      qualityConfidence: _qualityReport?.confidence ?? 'MANUAL',
+      closureDistanceM: _qualityReport?.closureDistanceMeters ?? 0,
+      closureQuality: _qualityReport?.closureQuality ?? 'MANUAL',
+      distanceTravelledM: _qualityReport?.distanceTravelledM ?? (_calculatedPerimeter ?? 0),
+      rejectedPointCount: _qualityReport?.rejectedPoints ?? 0,
+      filterVersion: 'quality-v2',
       sensorInfo: _mode == 'manual' ? 'Manual dimensions' : (_sensorAvailable ? 'GPS + motion sensors' : 'GPS; motion sensors unavailable'),
       notes: _notes.text.trim().isEmpty ? null : _notes.text.trim(),
       createdAt: now,
@@ -186,11 +260,15 @@ class _AreaMeasurementScreenState extends State<AreaMeasurementScreen> {
     _stopStreams();
     setState(() {
       _points.clear();
+      _rawPoints.clear();
+      _sampleBuffer.clear();
       _measuring = false;
       _paused = false;
       _calculatedArea = null;
       _calculatedPerimeter = null;
       _accuracy = null;
+      _gpsReady = false;
+      _qualityReport = null;
       _error = null;
     });
   }
@@ -199,9 +277,11 @@ class _AreaMeasurementScreenState extends State<AreaMeasurementScreen> {
     _locationSubscription?.cancel();
     _accelerometerSubscription?.cancel();
     _gyroscopeSubscription?.cancel();
+    _magnetometerSubscription?.cancel();
     _locationSubscription = null;
     _accelerometerSubscription = null;
     _gyroscopeSubscription = null;
+    _magnetometerSubscription = null;
   }
 
   @override
@@ -237,7 +317,7 @@ class _AreaMeasurementScreenState extends State<AreaMeasurementScreen> {
           TextField(controller: _notes, maxLines: 2, decoration: const InputDecoration(labelText: 'Notes (optional)', alignLabelWithHint: true)),
           const SizedBox(height: 16),
           FilledButton.icon(
-            onPressed: _calculatedArea == null ? null : _save,
+            onPressed: _calculatedArea == null || (_mode == 'gps' && (_qualityReport == null || !_qualityReport!.stable)) ? null : _save,
             icon: const Icon(Icons.save_outlined),
             label: const Text('Save Area to Task'),
           ),
@@ -277,12 +357,13 @@ class _AreaMeasurementScreenState extends State<AreaMeasurementScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Row(children: [const Icon(Icons.gps_fixed), const SizedBox(width: 8), Text(_measuring ? (_paused ? 'PAUSED' : 'MEASURING') : 'MEASUREMENT READY', style: const TextStyle(fontWeight: FontWeight.w800))]),
+            Row(children: [const Icon(Icons.gps_fixed), const SizedBox(width: 8), Text(_measuring ? (_paused ? 'PAUSED' : 'MEASURING') : (_gpsReady ? 'MEASUREMENT READY' : 'ACQUIRING GPS FIX'), style: const TextStyle(fontWeight: FontWeight.w800))]),
             const SizedBox(height: 12),
             Wrap(spacing: 18, runSpacing: 8, children: [
               Text(accuracy == null ? 'GPS: —' : 'GPS: $accuracyLabel ${accuracy.toStringAsFixed(1)} m'),
+              Text('Ready: ${_gpsReady ? 'YES' : 'NO'}'),
               Text('Points: ${_points.length}'),
-              Text('Sensors: ${_sensorAvailable ? 'Available' : 'Unavailable'}'),
+              Text('Sensors: ${_sensorAvailable ? 'Accel/Gyro ✓' : 'Accel/Gyro —'} · Compass: ${_compassAvailable ? '✓' : '—'}'),
               Text('Network: local save'),
             ]),
             const SizedBox(height: 12),
@@ -293,10 +374,12 @@ class _AreaMeasurementScreenState extends State<AreaMeasurementScreen> {
             ),
             const SizedBox(height: 12),
             if (_calculatedArea != null) _resultCard(),
+            if (_qualityReport != null) _qualityCard(_qualityReport!),
             Wrap(spacing: 8, children: [
-              if (!_measuring && _calculatedArea == null) FilledButton.icon(onPressed: _startGps, icon: const Icon(Icons.play_arrow), label: const Text('Start measurement')),
+              if (!_measuring && _calculatedArea == null) FilledButton.icon(onPressed: _gpsReady ? _startGps : null, icon: const Icon(Icons.play_arrow), label: Text(_gpsReady ? 'Start measurement' : 'Waiting for good GPS')),
               if (_measuring) OutlinedButton.icon(onPressed: _togglePause, icon: Icon(_paused ? Icons.play_arrow : Icons.pause), label: Text(_paused ? 'Resume' : 'Pause')),
               if (_measuring) FilledButton.icon(onPressed: _finishGps, icon: const Icon(Icons.stop), label: const Text('Finish boundary')),
+              if (_qualityReport != null) OutlinedButton.icon(onPressed: _reset, icon: const Icon(Icons.replay), label: const Text('Improve accuracy')),
               OutlinedButton.icon(onPressed: _reset, icon: const Icon(Icons.restart_alt), label: const Text('Reset')),
             ]),
           ],
@@ -312,6 +395,27 @@ class _AreaMeasurementScreenState extends State<AreaMeasurementScreen> {
           Expanded(child: Text('Hectares\n${(_calculatedArea! / 10000).toStringAsFixed(3)}', style: const TextStyle(fontWeight: FontWeight.w700))),
           Expanded(child: Text('Perimeter\n${(_calculatedPerimeter ?? 0).round()} m', style: const TextStyle(fontWeight: FontWeight.w700))),
         ]),
+      );
+
+  Widget _qualityCard(MeasurementQualityReport report) => Padding(
+        padding: const EdgeInsets.only(top: 12),
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surfaceContainerHighest,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Wrap(
+            spacing: 16,
+            runSpacing: 8,
+            children: [
+              Text('Quality ${report.scoreLabel} · ${report.confidence}'),
+              Text('Closure ${report.closureDistanceMeters.toStringAsFixed(1)} m · ${report.closureQuality}'),
+              Text('${report.acceptedPoints} accepted / ${report.rejectedPoints} rejected'),
+              Text('Stability: ${report.stable ? 'STABLE' : 'UNSTABLE'}'),
+            ],
+          ),
+        ),
       );
 }
 

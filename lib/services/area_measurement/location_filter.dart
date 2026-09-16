@@ -22,6 +22,44 @@ class LocationFilter {
     return candidate;
   }
 
+  /// Stabilizes a burst of readings before one boundary point is accepted.
+  /// Better reported accuracy contributes more weight; distant outliers are ignored.
+  SurveyPoint? stabilizeBurst(List<SurveyPoint> samples) {
+    if (samples.isEmpty) return null;
+    final usable = samples.where((sample) => sample.accuracyMeters > 0 && sample.accuracyMeters <= 30).toList();
+    if (usable.isEmpty) return null;
+    final latitudes = usable.map((sample) => sample.latitude).toList()..sort();
+    final longitudes = usable.map((sample) => sample.longitude).toList()..sort();
+    final medianLat = latitudes[latitudes.length ~/ 2];
+    final medianLon = longitudes[longitudes.length ~/ 2];
+    final selected = usable.where((sample) => _distanceTo(sample, medianLat, medianLon) <= 25).toList();
+    final points = selected.isEmpty ? usable : selected;
+    var totalWeight = 0.0;
+    var latitude = 0.0;
+    var longitude = 0.0;
+    for (final sample in points) {
+      final weight = 1 / (sample.accuracyMeters * sample.accuracyMeters).clamp(0.25, double.infinity);
+      totalWeight += weight;
+      latitude += sample.latitude * weight;
+      longitude += sample.longitude * weight;
+    }
+    return SurveyPoint(
+      latitude: latitude / totalWeight,
+      longitude: longitude / totalWeight,
+      accuracyMeters: points.map((sample) => sample.accuracyMeters).reduce((a, b) => a < b ? a : b),
+      recordedAt: points.last.recordedAt,
+    );
+  }
+
+  bool isStale(SurveyPoint point, {DateTime? now}) => (now ?? DateTime.now()).difference(point.recordedAt).inSeconds > 10;
+
+  double _distanceTo(SurveyPoint point, double latitude, double longitude) {
+    final lat = (point.latitude + latitude) * 0.5 * 0.017453292519943295;
+    final x = (point.longitude - longitude) * 111320 * _cos(lat);
+    final y = (point.latitude - latitude) * 110540;
+    return (x * x + y * y).sqrt();
+  }
+
   double _distance(SurveyPoint a, SurveyPoint b) {
     final lat = (a.latitude + b.latitude) * 0.5 * 0.017453292519943295;
     final x = (b.longitude - a.longitude) * 111320 * _cos(lat);
