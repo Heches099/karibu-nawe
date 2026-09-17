@@ -254,7 +254,7 @@ class _AreaMeasurementScreenState extends State<AreaMeasurementScreen> {
     }
   }
 
-  void _reset() {
+  Future<void> _reset() async {
     _stopStreams();
     setState(() {
       _points.clear();
@@ -268,7 +268,10 @@ class _AreaMeasurementScreenState extends State<AreaMeasurementScreen> {
       _gpsReady = false;
       _qualityReport = null;
       _error = null;
+      _sensorAvailable = false;
+      _compassAvailable = false;
     });
+    await _prepareGpsFix();
   }
 
   void _stopStreams() {
