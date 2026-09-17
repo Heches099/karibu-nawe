@@ -64,7 +64,7 @@ class _PaymentSheetState extends State<PaymentSheet> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           DropdownButtonFormField<Worker>(
-            value: _worker,
+            initialValue: _worker,
             onChanged: (v) => setState(() => _worker = v),
             decoration: const InputDecoration(labelText: 'Pay To', prefixIcon: Icon(Icons.person_outline)),
             items: [
@@ -137,7 +137,7 @@ class _PaymentSheetState extends State<PaymentSheet> {
           ),
           const SizedBox(height: 12),
           DropdownButtonFormField<String>(
-            value: _method,
+            initialValue: _method,
             onChanged: (v) => setState(() => _method = v ?? 'Cash'),
             decoration: const InputDecoration(labelText: 'Payment Method', prefixIcon: Icon(Icons.payments_outlined)),
             items: const [
@@ -150,7 +150,7 @@ class _PaymentSheetState extends State<PaymentSheet> {
           ),
           const SizedBox(height: 12),
           DropdownButtonFormField<Worker?>(
-            value: _collector,
+            initialValue: _collector,
             onChanged: (v) => setState(() => _collector = v),
             decoration: const InputDecoration(
               labelText: 'Collected By (optional)',

@@ -248,7 +248,7 @@ class _OwnTaskTile extends StatelessWidget {
               children: [
                 _stat(context, 'Expected', fmtMoney(allocation.expectedAmount.round())),
                 _stat(context, 'Allocated', fmtMoney(allocation.allocatedAmount.round())),
-                if (diff.abs() > 0.001) _stat(context, 'Difference', '${fmtSigned(diff)}', color: const Color(0xFF6A1B9A)),
+                if (diff.abs() > 0.001) _stat(context, 'Difference', fmtSigned(diff), color: const Color(0xFF6A1B9A)),
                 _stat(context, 'Paid', fmtMoney(paid.round())),
                 _stat(context, 'Remaining', fmtMoney(remaining.round())),
               ],

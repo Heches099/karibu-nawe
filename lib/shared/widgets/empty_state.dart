@@ -57,7 +57,7 @@ class SectionHeader extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(title, style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800, letterSpacing: 0.4)),
-            if (trailing != null) trailing!,
+            ?trailing,
           ],
         ),
         if (divider) ...[

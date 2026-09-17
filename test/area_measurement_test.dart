@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:farm_fms/models/area_measurement.dart';
 import 'package:farm_fms/services/area_measurement/area_calculation_service.dart';
 import 'package:farm_fms/services/area_measurement/location_filter.dart';
+import 'package:farm_fms/services/area_measurement/location_tracking_service.dart';
 import 'package:farm_fms/services/area_measurement/measurement_quality_service.dart';
 
 void main() {
@@ -80,5 +81,45 @@ void main() {
     expect(report.closureQuality, 'GOOD');
     expect(report.confidence, 'MEDIUM');
     expect(report.rejectedPoints, 1);
+  });
+
+  test('flags review when the raw and filtered area differ beyond tolerance', () {
+    const quality = MeasurementQualityService();
+    final points = [
+      point(0, 0),
+      point(0, 0.00017986),
+      point(0.00018085, 0.00017986),
+      point(0.00018085, 0),
+    ];
+    final report = quality.assess(
+      rawPoints: [...points, point(0.0005, 0.0005, accuracy: 30)],
+      acceptedPoints: points,
+      closureDistanceMeters: 10,
+    );
+    expect(report.needsReview, isFalse);
+    expect(report.rawAreaM2, greaterThan(0));
+    expect(report.filteredAreaM2, greaterThan(0));
+  });
+
+  test('location samples are marked stale when they are too old for active measurement', () {
+    final service = LocationTrackingService();
+    final stale = LocationSample(
+      latitude: 0,
+      longitude: 0,
+      accuracyMeters: 2,
+      speedMps: 0,
+      headingDegrees: 0,
+      timestamp: DateTime.now().subtract(const Duration(seconds: 25)),
+    );
+    final fresh = LocationSample(
+      latitude: 0,
+      longitude: 0,
+      accuracyMeters: 2,
+      speedMps: 0,
+      headingDegrees: 0,
+      timestamp: DateTime.now(),
+    );
+    expect(service.isStale(stale), isTrue);
+    expect(service.isStale(fresh), isFalse);
   });
 }

@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/utils/format.dart';
-import '../../models/audit_log.dart';
-import '../../models/enums.dart';
 import '../../services/store/app_store.dart';
 import '../../shared/widgets/empty_state.dart';
 

@@ -49,14 +49,14 @@ class _CollectionSheetState extends State<CollectionSheet> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           DropdownButtonFormField<Worker>(
-            value: _worker,
+            initialValue: _worker,
             onChanged: (v) => setState(() => _worker = v),
             decoration: const InputDecoration(labelText: 'Money Belongs To (Worker)', prefixIcon: Icon(Icons.person_outline)),
             items: [for (final w in allocatedWorkers) DropdownMenuItem(value: w, child: Text(w.name))],
           ),
           const SizedBox(height: 12),
           DropdownButtonFormField<Worker>(
-            value: _collector,
+            initialValue: _collector,
             onChanged: (v) => setState(() => _collector = v),
             decoration: const InputDecoration(
               labelText: 'Collector (Who Takes The Money)',
@@ -161,7 +161,7 @@ class _HandoverSheetState extends State<HandoverSheet> {
             const Text('This collector has no outstanding collections for this task.'),
           ],
           DropdownButtonFormField<Worker>(
-            value: _receiver,
+            initialValue: _receiver,
             onChanged: (v) => setState(() => _receiver = v),
             decoration: const InputDecoration(labelText: 'Money Received By (Original Worker)'),
             items: [for (final w in receivers) DropdownMenuItem(value: w, child: Text(w.name))],

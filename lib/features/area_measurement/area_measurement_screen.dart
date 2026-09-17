@@ -1,13 +1,13 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:provider/provider.dart';
 import 'package:sensors_plus/sensors_plus.dart';
 
 import '../../core/utils/format.dart';
 import '../../services/area_measurement/area_calculation_service.dart';
 import '../../services/area_measurement/location_filter.dart';
+import '../../services/area_measurement/location_tracking_service.dart';
 import '../../services/area_measurement/measurement_quality_service.dart';
 import '../../services/store/app_store.dart';
 import '../../shared/widgets/forms.dart';
@@ -29,10 +29,11 @@ class _AreaMeasurementScreenState extends State<AreaMeasurementScreen> {
   final _calculator = const AreaCalculationService();
   final _filter = const LocationFilter();
   final _qualityService = const MeasurementQualityService();
+  final _locationTracking = const LocationTrackingService();
   final _points = <SurveyPoint>[];
   final _rawPoints = <SurveyPoint>[];
   final _sampleBuffer = <SurveyPoint>[];
-  StreamSubscription<Position>? _locationSubscription;
+  StreamSubscription<LocationSample>? _locationSubscription;
   StreamSubscription<AccelerometerEvent>? _accelerometerSubscription;
   StreamSubscription<GyroscopeEvent>? _gyroscopeSubscription;
   StreamSubscription<MagnetometerEvent>? _magnetometerSubscription;
@@ -102,31 +103,28 @@ class _AreaMeasurementScreenState extends State<AreaMeasurementScreen> {
   }
 
   Future<void> _prepareGpsFix() async {
-    if (!await Geolocator.isLocationServiceEnabled()) {
-      if (mounted) setState(() => _error = 'Location is disabled. Manual measurement remains available.');
+    final available = await _locationTracking.ensureServiceReady();
+    if (!available) {
+      if (mounted) setState(() => _error = 'Location is unavailable. Manual measurement remains available.');
       return;
     }
-    var permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied) permission = await Geolocator.requestPermission();
-    if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
-      if (mounted) setState(() => _error = 'Location permission is unavailable. Manual measurement remains available.');
-      return;
-    }
-    _locationSubscription = Geolocator.getPositionStream(
-      locationSettings: const LocationSettings(accuracy: LocationAccuracy.high, distanceFilter: 1),
-    ).listen(_onPosition, onError: (Object error) {
-      if (mounted) setState(() => _error = 'Location updates are unavailable. Manual measurement remains available.');
-    });
+    _locationSubscription = _locationTracking.subscribe(
+      onData: _onLocationSample,
+      onError: (Object error) {
+        if (mounted) setState(() => _error = 'Location updates are unavailable. Manual measurement remains available.');
+      },
+      highAccuracy: true,
+    );
   }
 
-  void _onPosition(Position position) {
+  void _onLocationSample(LocationSample sample) {
     final point = SurveyPoint(
-      latitude: position.latitude,
-      longitude: position.longitude,
-      accuracyMeters: position.accuracy,
-      recordedAt: position.timestamp,
+      latitude: sample.latitude,
+      longitude: sample.longitude,
+      accuracyMeters: sample.accuracyMeters,
+      recordedAt: sample.timestamp,
     );
-    if (_filter.isStale(point)) return;
+    if (_locationTracking.isStale(sample) || _locationTracking.isSuspicious(sample)) return;
     if (!_measuring) {
       if (mounted) {
         setState(() {
@@ -215,8 +213,8 @@ class _AreaMeasurementScreenState extends State<AreaMeasurementScreen> {
       setState(() => _error = 'Calculate an area before saving.');
       return;
     }
-    if (_mode == 'gps' && (_qualityReport == null || !_qualityReport!.stable)) {
-      setState(() => _error = 'Measurement is unstable. Improve GPS quality or repeat the boundary before saving.');
+    if (_mode == 'gps' && (_qualityReport == null || !_qualityReport!.stable || _qualityReport!.needsReview)) {
+      setState(() => _error = 'Measurement needs review. Improve GPS quality or repeat the boundary before saving.');
       return;
     }
     final store = context.read<AppStore>();

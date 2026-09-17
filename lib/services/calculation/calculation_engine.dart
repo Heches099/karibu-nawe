@@ -327,13 +327,13 @@ class WorkTypeCalculator {
     // Validate that every numeric/required field can be read as a number.
     for (final f in workType.fields) {
       final v = raw[f.key];
-      if (v == null || '${v}'.trim().isEmpty) {
+      if (v == null || '$v'.trim().isEmpty) {
         if (f.required) {
           throw ValidationException('${f.label} is required.');
         }
         continue;
       }
-      if (f.type != 'text' && double.tryParse('${v}'.trim().replaceAll(',', '')) == null) {
+      if (f.type != 'text' && double.tryParse('$v'.trim().replaceAll(',', '')) == null) {
         throw ValidationException('${f.label} must be a valid number.');
       }
     }

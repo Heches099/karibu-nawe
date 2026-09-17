@@ -11,7 +11,7 @@ enum BadgeKind {
   collected(StatusColors.collected, Icons.arrow_downward, 'Collected'),
   collectedByOther(StatusColors.collected, Icons.arrow_downward, 'Collected by other'),
   pending(StatusColors.pending, Icons.schedule, 'Pending'),
-  handoverPending(const Color(0xFFF9A825), Icons.schedule, 'Handover pending'),
+  handoverPending(Color(0xFFF9A825), Icons.schedule, 'Handover pending'),
   completed(StatusColors.completed, Icons.check_circle, 'Completed'),
   active(StatusColors.live, Icons.play_circle, 'Active'),
   cancelled(StatusColors.unpaid, Icons.cancel, 'Cancelled'),

@@ -326,7 +326,7 @@ class _AllocRow extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Text('${calc == null ? '' : fmtArea((calc.outputs['area'] as num?)?.toDouble() ?? 0)}',
+                  Text(calc == null ? '' : fmtArea((calc.outputs['area'] as num?)?.toDouble() ?? 0),
                       style: Theme.of(context).textTheme.labelMedium),
                   Text(fmtMoney(allocation.expectedAmount.round()), style: Theme.of(context).textTheme.bodySmall),
                 ],

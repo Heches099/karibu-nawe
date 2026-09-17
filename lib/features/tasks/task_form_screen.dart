@@ -106,7 +106,7 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<WorkType>(
-                  value: _workType,
+                  initialValue: _workType,
                   onChanged: (v) => setState(() => _workType = v),
                   decoration: const InputDecoration(
                     labelText: 'Work Type',

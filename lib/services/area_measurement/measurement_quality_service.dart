@@ -32,6 +32,13 @@ class MeasurementQualityReport {
   });
 
   String get scoreLabel => '${score.round()}/100';
+
+  double get areaDifferenceRatio {
+    if (rawAreaM2 <= 0) return 0;
+    return (rawAreaM2 - filteredAreaM2).abs() / rawAreaM2;
+  }
+
+  bool get needsReview => areaDifferenceRatio > 0.2 || !stable;
 }
 
 class MeasurementQualityService {
@@ -89,7 +96,7 @@ class MeasurementQualityService {
     final stabilityRatio = rawArea == 0 ? 1 : (rawArea - filteredArea).abs() / rawArea;
     final stable = stabilityRatio <= stabilityTolerance;
     final score = _bounded(accuracyScore * 0.45 + closureScore * 0.30 + sampleScore * 0.15 + (stable ? 10 : 0));
-    return MeasurementQualityReport(
+    final report = MeasurementQualityReport(
       score: score,
       confidence: score >= 80 ? 'HIGH' : score >= 60 ? 'MEDIUM' : 'LOW',
       averageAccuracyMeters: averageAccuracy,
@@ -102,6 +109,7 @@ class MeasurementQualityService {
       rejectedPoints: math.max(rawPoints.length - acceptedPoints.length, 0),
       distanceTravelledM: calculator.perimeterM(acceptedPoints),
     );
+    return report;
   }
 
   double distanceMeters(SurveyPoint a, SurveyPoint b) => _distanceFrom(a, b.latitude, b.longitude);

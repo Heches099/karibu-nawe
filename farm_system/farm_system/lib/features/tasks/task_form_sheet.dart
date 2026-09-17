@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../models/work_type.dart';
 import '../../state/app_state.dart';
 import 'task_detail_screen.dart';
 
