@@ -9,6 +9,7 @@ import '../../services/area_measurement/area_calculation_service.dart';
 import '../../services/area_measurement/location_filter.dart';
 import '../../services/area_measurement/location_tracking_service.dart';
 import '../../services/area_measurement/measurement_quality_service.dart';
+import '../../services/area_measurement/sensor_fusion_service.dart';
 import '../../services/store/app_store.dart';
 import '../../shared/widgets/forms.dart';
 
@@ -30,6 +31,7 @@ class _AreaMeasurementScreenState extends State<AreaMeasurementScreen> {
   final _filter = const LocationFilter();
   final _qualityService = const MeasurementQualityService();
   final _locationTracking = const LocationTrackingService();
+  final _sensorFusion = SensorFusionService();
   final _points = <SurveyPoint>[];
   final _rawPoints = <SurveyPoint>[];
   final _sampleBuffer = <SurveyPoint>[];
@@ -88,17 +90,33 @@ class _AreaMeasurementScreenState extends State<AreaMeasurementScreen> {
       _sampleBuffer.clear();
     });
     try {
-      _accelerometerSubscription = accelerometerEventStream(samplingPeriod: SensorInterval.normalInterval).listen((_) {
-        if (mounted && !_sensorAvailable) setState(() => _sensorAvailable = true);
+      _accelerometerSubscription = accelerometerEventStream(samplingPeriod: SensorInterval.normalInterval).listen((event) {
+        _sensorFusion.updateAccelerometer(event);
+        if (mounted && !_sensorAvailable) {
+          setState(() => _sensorAvailable = true);
+        }
+      }, onError: (_) {
+        _sensorFusion.hasAccelerometer = false;
       });
-      _gyroscopeSubscription = gyroscopeEventStream(samplingPeriod: SensorInterval.normalInterval).listen((_) {
-        if (mounted && !_sensorAvailable) setState(() => _sensorAvailable = true);
+      _gyroscopeSubscription = gyroscopeEventStream(samplingPeriod: SensorInterval.normalInterval).listen((event) {
+        _sensorFusion.updateGyroscope(event);
+        if (mounted && !_sensorAvailable) {
+          setState(() => _sensorAvailable = true);
+        }
+      }, onError: (_) {
+        _sensorFusion.hasGyroscope = false;
       });
-      _magnetometerSubscription = magnetometerEventStream(samplingPeriod: SensorInterval.normalInterval).listen((_) {
-        if (mounted && !_compassAvailable) setState(() => _compassAvailable = true);
+      _magnetometerSubscription = magnetometerEventStream(samplingPeriod: SensorInterval.normalInterval).listen((event) {
+        _sensorFusion.updateMagnetometer(event);
+        if (mounted && !_compassAvailable) {
+          setState(() => _compassAvailable = true);
+        }
+      }, onError: (_) {
+        _sensorFusion.hasMagnetometer = false;
       });
     } catch (_) {
       _sensorAvailable = false;
+      _compassAvailable = false;
     }
   }
 
@@ -125,6 +143,9 @@ class _AreaMeasurementScreenState extends State<AreaMeasurementScreen> {
       recordedAt: sample.timestamp,
     );
     if (_locationTracking.isStale(sample) || _locationTracking.isSuspicious(sample)) return;
+    if (_sensorFusion.movementState == MovementState.stationary && _points.isNotEmpty) {
+      return;
+    }
     if (!_measuring) {
       if (mounted) {
         setState(() {
@@ -365,7 +386,8 @@ class _AreaMeasurementScreenState extends State<AreaMeasurementScreen> {
               Text('Ready: ${_gpsReady ? 'YES' : 'NO'}'),
               Text('Points: ${_points.length}'),
               Text('Sensors: ${_sensorAvailable ? 'Accel/Gyro ✓' : 'Accel/Gyro —'} · Compass: ${_compassAvailable ? '✓' : '—'}'),
-              Text('Network: local save'),
+              Text('Motion: ${_sensorFusion.movementSummary}'),
+              Text('Network: ${_sensorFusion.hasMotionContext ? 'motion context active' : 'local save'}'),
             ]),
             const SizedBox(height: 12),
             Container(
